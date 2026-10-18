@@ -1,5 +1,6 @@
 # Data and datasets (do not commit raw data)
-data/
+data/*
+!data/.gitkeep
 *.parquet
 *.parquet/
 *.csv
