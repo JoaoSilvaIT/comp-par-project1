@@ -206,6 +206,7 @@ class SparkProfiler:
 
     def report(self, names=None):
         """Return a pandas DataFrame with one row per profiled run (human-readable byte sizes)."""
+        import pandas as pd
         names = names or list(self.runs.keys())
         rows = []
         for n in names:
@@ -216,16 +217,7 @@ class SparkProfiler:
             rows.append(row)
         cols = ["run", "wall_time_s", "num_jobs", "num_stages", "num_tasks",
                 "executor_run_time_ms", "executor_cpu_time_ms"] + list(self._BYTE_KEYS)
-
-        try:
-            import pandas as pd
-            return pd.DataFrame(rows)[cols].set_index("run")
-        except ImportError:
-            # Fallback when pandas is not installed
-            lines = ["\t".join(cols)]
-            for r in rows:
-                lines.append("\t".join(str(r.get(c, "")) for c in cols))
-            return "\n".join(lines)
+        return pd.DataFrame(rows)[cols].set_index("run")
 
     def compare(self, before, after):
         """Return a pandas DataFrame comparing two named runs, metric by metric, with % change."""

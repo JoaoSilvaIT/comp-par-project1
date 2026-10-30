@@ -8,6 +8,9 @@ data/*
 output/
 results/
 benchmark_results/
+!report/results/
+!report/results/**
+!report/results/*.csv
 
 # Python & Jupyter
 __pycache__/

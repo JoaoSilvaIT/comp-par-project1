@@ -1,0 +1,8 @@
+year,total_trips,removed_fare,removed_distance,removed_passengers,removed_timestamps,removed_locations
+2002,1,1,1,0,0,1
+2003,2,1,2,0,0,0
+2008,32,4,6,0,0,1
+2009,90,11,16,0,0,5
+2019,131,2,3,0,0,0
+2020,23838845,103249,317571,489585,15802,266363
+2021,24,1,0,0,0,0

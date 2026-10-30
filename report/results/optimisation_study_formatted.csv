@@ -1,0 +1,6 @@
+run,wall_time_s,num_jobs,num_stages,num_tasks,executor_run_time_ms,executor_cpu_time_ms,input_bytes,output_bytes,shuffle_read_bytes,shuffle_write_bytes,memory_spilled_bytes,disk_spilled_bytes
+0-baseline,83.61,24,78,7681,350057,305291,10.9MB,1.2MB,1.3GB,1.3GB,0.0B,0.0B
+1-caching,63.25,25,77,7568,268634,231581,4.3GB,1.2MB,1.3GB,1.3GB,656.1MB,69.1MB
+2-pruned-scan,55.97,14,66,6957,248142,218884,2.8GB,1.2MB,1.3GB,1.3GB,544.0MB,55.2MB
+3-broadcast-join,45.06,16,47,4914,193167,173662,2.8GB,1.2MB,629.4MB,648.1MB,0.0B,0.0B
+4-aqe-tuned,33.95,34,76,385,137027,131894,3.6GB,37.8KB,644.2MB,651.9MB,1.5GB,406.7MB

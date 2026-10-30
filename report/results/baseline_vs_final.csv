@@ -1,0 +1,13 @@
+metric,0-baseline,4-aqe-tuned,change
+wall_time_s,83.61,33.95,-59.4%
+num_jobs,24,34,+41.7%
+num_stages,78,76,-2.6%
+num_tasks,7681,385,-95.0%
+executor_run_time_ms,350057,137027,-60.9%
+executor_cpu_time_ms,305291,131894,-56.8%
+input_bytes,10.9MB,3.6GB,+33200.7%
+output_bytes,1.2MB,37.8KB,-96.9%
+shuffle_read_bytes,1.3GB,644.2MB,-50.6%
+shuffle_write_bytes,1.3GB,651.9MB,-50.0%
+memory_spilled_bytes,0.0B,1.5GB,-
+disk_spilled_bytes,0.0B,406.7MB,-
