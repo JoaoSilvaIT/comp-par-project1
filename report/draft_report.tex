@@ -1,6 +1,9 @@
-\documentclass[sigconf]{acmart}
+\documentclass[sigconf,nonacm]{acmart}
 \settopmatter{printacmref=false, printccs=false, printfolios=true}
 \renewcommand\footnotetextcopyrightpermission[1]{}
+
+\acmConference[CompPar '26]{Computa\c{c}\~ao Paralela (CompPar 2026/27)}{November 2026}{FCT NOVA, Caparica, Portugal}
+\renewcommand{\shortauthors}{J. Silva and J. Pisco}
 
 \usepackage{booktabs}
 \usepackage{graphicx}
@@ -12,8 +15,8 @@
 \author{Jo\~ao Silva}
 \email{p212794@campus.fct.unl.pt}
 
-\author{Firstname Lastname}
-\email{email@campus.fct.unl.pt}
+\author{Jos\'e Manuel Fernandes Pisco}
+\email{p212228@campus.fct.unl.pt}
 
 \begin{abstract}
 Writing a PySpark pipeline that produces correct results is fairly straightforward, but making it run fast on a distributed cluster requires understanding where the engine spends its time. In this report, we build and profile an analytical pipeline over the 2020 New York City Yellow Taxi dataset (roughly 24.6 million trips across 12 monthly Parquet files) paired with the official taxi zone lookup table. Our pipeline implements three mandatory tasks---data cleaning, temporal demand analysis, and monthly zone statistics---along with two optional tasks: fare anomaly detection and demand forecasting with a four-week lag. Starting from a naive baseline on a three-worker Docker Spark cluster, we use the Lab~3 profiler and the Spark Web UI to identify bottlenecks and apply four incremental optimisations: caching reused data, pruning unneeded columns during a single unified file scan, broadcasting the small lookup table, and tuning Adaptive Query Execution (AQE) shuffle partitions to prevent disk spilling. Together, these steps cut execution time from 83.61 seconds down to 27.63 seconds (a $3.03\times$ speedup), reduce network shuffle volume by more than half, and eliminate over 400 MB of disk spill. Finally, we test how the tuned pipeline scales with larger data fractions and additional worker nodes.
@@ -31,7 +34,7 @@ This workload is particularly interesting from a performance perspective because
 
 \section{Pipeline}
 
-We built the pipeline using the PySpark \textbf{DataFrame API} rather than low-level RDDs \cite{chambers2018spark, armbrust2015sparksql}. As we learned in the lectures and labs, both the DataFrame API and Spark SQL compile down to the exact same physical execution plan through the Catalyst optimizer and the Tungsten execution engine. Using DataFrames allowed us to chain transformations cleanly in Python while still benefiting from automatic predicate pushdown, column pruning, and whole-stage code generation, without paying the heavy serialization penalty of Python user-defined functions (UDFs).
+We built the pipeline using the PySpark \textbf{DataFrame API} rather than low-level RDDs \cite{pysparkapi2026, sparktuning2026}. As we learned in the lectures and labs, both the DataFrame API and Spark SQL compile down to the exact same physical execution plan through the Catalyst optimizer and the Tungsten execution engine. Using DataFrames allowed us to chain transformations cleanly in Python while still benefiting from automatic predicate pushdown, column pruning, and whole-stage code generation, without paying the heavy serialization penalty of Python user-defined functions (UDFs).
 
 \textbf{M1 --- Data Ingestion and Cleaning.} We read the monthly Parquet files, cast all columns to their expected types, and drop incomplete rows containing null values (which removes about 810k rows, mostly missing passenger counts). We then count how many records violate each of the five validity rules (shown in Table~\ref{tab:m1_stats}) and filter them out, leaving 22.68 million valid trips for the rest of the pipeline.
 
@@ -76,7 +79,7 @@ Figure~\ref{fig:exec_plan} shows a simplified diagram of the physical plan for \
 \section{Profiling and Baseline}
 
 \paragraph{Experimental Setup.}
-We ran all benchmarks on a Linux machine (16 logical CPU cores, 23 GiB RAM) using the course Docker cluster running \textbf{Apache Spark 4.2.0}. For our baseline and optimisation experiments, the cluster was configured with one master node, \textbf{three worker containers} (2 CPU cores and 2 GB of RAM per worker, giving 6 executor cores and $3 \times 1.5\text{ GB} = 4.5\text{ GB}$ of total executor heap), and one driver container (2 GB of RAM). We used the Lab~3 profiler helper to record stage metrics and queried the Spark UI REST API to measure task duration skew.
+We ran all benchmarks on a Linux machine (16 logical CPU cores, 23 GiB RAM) using the course Docker cluster running \textbf{Apache Spark 4.2.0}. For our baseline and optimisation experiments, the cluster was configured with one master node, \textbf{three worker containers} (2 CPU cores and 2 GB of RAM per worker, giving 6 executor cores and $3 \times 1.5\text{ GB} = 4.5\text{ GB}$ of total executor heap), and one driver container (2 GB of RAM). We used the Lab~3 profiler helper to record stage metrics and queried the Spark UI REST API \cite{sparkmonitoring2026} to measure task duration skew.
 
 \paragraph{Baseline Results and Bottlenecks.}
 To get a true unoptimised baseline (\texttt{0-baseline}), we ran the pipeline with Adaptive Query Execution turned off, default shuffle partitions set to 200, no caching, and automatic broadcast joins disabled. As shown in Table~\ref{tab:opt_summary} and Figure~\ref{fig:opt_study}, the baseline took \textbf{83.61 seconds}, launched \textbf{7,681 tasks} across 78 stages, and shuffled \textbf{1.30 GB} of data across the network. Looking at the Spark UI and execution plans pointed to four clear bottlenecks.
@@ -160,7 +163,7 @@ Following the Lab~3 methodology (\emph{profile $\to$ hypothesise $\to$ optimise 
 \end{figure*}
 
 \paragraph{1. Dataset Scale (10\% to 100\%).}
-To see how our tuned pipeline handles growing data volumes, we ran it on 10\%, 20\%, 50\%, and 100\% samples of the 2020 dataset on the 3-worker cluster (Figure~\ref{fig:scalability}a). Increasing the dataset size by $10\times$ (from 10\% to 100\%) only increased total runtime by \textbf{$2.77\times$} (from 11.33 s to 31.35 s). In other words, execution time scales \textbf{sub-linearly}. As shown by the dotted fit line in Figure~\ref{fig:scalability}a, every run has a fixed baseline cost of about 8.5 seconds (spent reading file metadata, planning 34 Spark jobs, and broadcasting the lookup table), plus a variable cost of about 22.6 seconds that grows linearly with the data. This matches \textbf{Gustafson-Barsis' Law} \cite{gustafson1988reevaluating} from Lecture~7: as the dataset grows, the fixed sequential overhead becomes a much smaller fraction of the total runtime, allowing the cluster to use its parallel cores more efficiently. Looking at individual tasks, the heavy window sort in \textbf{O1} (green curve in Figure~\ref{fig:scalability}a) scales almost purely linearly with data size because shuffle volume grows proportionally from 75.5 MB at 10\% to 644.2 MB at 100\%.
+To see how our tuned pipeline handles growing data volumes, we ran it on 10\%, 20\%, 50\%, and 100\% samples of the 2020 dataset on the 3-worker cluster (Figure~\ref{fig:scalability}a). Increasing the dataset size by $10\times$ (from 10\% to 100\%) only increased total runtime by \textbf{$2.77\times$} (from 11.33 s to 31.35 s). In other words, execution time scales \textbf{sub-linearly}. As shown by the dotted fit line in Figure~\ref{fig:scalability}a, every run has a fixed baseline cost of about 8.5 seconds (spent reading file metadata, planning 34 Spark jobs, and broadcasting the lookup table), plus a variable cost of about 22.6 seconds that grows linearly with the data. This matches \textbf{Gustafson-Barsis' Law} as covered in parallel computing theory (Lecture~7): as the dataset grows, the fixed sequential overhead becomes a much smaller fraction of the total runtime, allowing the cluster to use its parallel cores more efficiently. Looking at individual tasks, the heavy window sort in \textbf{O1} (green curve in Figure~\ref{fig:scalability}a) scales almost purely linearly with data size because shuffle volume grows proportionally from 75.5 MB at 10\% to 644.2 MB at 100\%.
 
 \paragraph{2. Cluster Size Strong Scaling (1 to 6 Workers and Local Mode).}
 Next, we kept the full 100\% dataset fixed and scaled the cluster across 1, 2, 3, 4, and 6 workers (2 to 12 cores), as well as local mode with 4 and 16 threads on the host machine (Figure~\ref{fig:scalability}b and Table~\ref{tab:cluster_scale}).
@@ -186,7 +189,7 @@ Next, we kept the full 100\% dataset fixed and scaled the cluster across 1, 2, 3
 \bottomrule
 \end{tabular}
 \end{table}
-Doubling the cluster from 1 to 2 workers (2 to 4 cores) gave a nearly ideal speedup of \textbf{$1.93\times$ ($96.4\%$ efficiency)}. Beyond 2 workers, however, total pipeline speedup plateaued around $2.00\times$ at 4 workers ($50\%$ efficiency) and dropped to $1.72\times$ at 6 workers, even though the window stage \textbf{O1} continued scaling up to $2.37\times$ at 4 workers (red curve in Figure~\ref{fig:scalability}b). The theory from Lecture~7 (\textbf{Amdahl's Law} \cite{amdahl1967validity} and the \textbf{DAG Work-Span / Brent's Lemma model} \cite{mccool2012structured}) explains both effects.
+Doubling the cluster from 1 to 2 workers (2 to 4 cores) gave a nearly ideal speedup of \textbf{$1.93\times$ ($96.4\%$ efficiency)}. Beyond 2 workers, however, total pipeline speedup plateaued around $2.00\times$ at 4 workers ($50\%$ efficiency) and dropped to $1.72\times$ at 6 workers, even though the window stage \textbf{O1} continued scaling up to $2.37\times$ at 4 workers (red curve in Figure~\ref{fig:scalability}b). The theoretical models from Lecture~7 (\textbf{Amdahl's Law} and the \textbf{DAG Work-Span model}) explain both effects.
 
 \textbf{Critical-Path Span Limit in M1.} When Spark scans the 12 Parquet files using its default 128 MB split size, it creates 7 partitions. Because pre-lockdown January (90 MB, 6.4M rows) and February (88 MB, 6.3M rows) each fit inside a single 128 MB split, \textbf{just two partitions hold 53\% of the entire year's data}. In the Work-Span model, a stage can never finish faster than its longest single task (the span $T_\infty \approx 11\text{ s}$ to scan and cache January), which caps the effective parallelism of M1 at $23.8\text{M} / 6.4\text{M} \approx 3.7$ cores. Once we reach 2 workers (4 cores), two cores are busy scanning January and February while any additional cores finish the tiny spring/summer months in 2 seconds and sit idle waiting for the stage barrier.
 
@@ -222,7 +225,7 @@ We thank Professor Herv\'e Paulino for providing the Lab~3 profiler tool and for
 \textbf{Member} & \textbf{Share} & \textbf{Main Responsibilities} \\
 \midrule
 Jo\~ao Silva & 50\% & Standalone CLI script, O3 self-join implementation, AQE and partition tuning, scalability benchmarks, and Sections 4--6 of the report. \\
-Firstname Lastname & 50\% & Initial Jupyter notebook, M1--M3 and O1 DataFrame/Window queries, Docker cluster setup, and Sections 1--3 of the report. \\
+Jos\'e Manuel Fernandes Pisco & 50\% & Initial Jupyter notebook, M1--M3 and O1 DataFrame/Window queries, Docker cluster setup, and Sections 1--3 of the report. \\
 \bottomrule
 \end{tabular}
 \end{table}
